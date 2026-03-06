@@ -1,71 +1,64 @@
 const axios = require("axios");
-const AmazonCognitoIdentity = require("amazon-cognito-identity-js");
-global.fetch = require("node-fetch");
+const { Amplify } = require("aws-amplify");
+const { Auth } = require("aws-amplify/auth");
 
-const poolData = {
-  UserPoolId: "us-east-2_W1NZcFghK",
-  ClientId: "1956req5ro9drdtbf5i6kis4la"
-};
-
-const pool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
-
-function login(email, password) {
-  return new Promise((resolve, reject) => {
-
-    const user = new AmazonCognitoIdentity.CognitoUser({
-      Username: email,
-      Pool: pool
-    });
-
-    const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
-      Username: email,
-      Password: password
-    });
-
-    user.authenticateUser(authDetails, {
-      onSuccess: (result) => {
-        const token = result.getIdToken().getJwtToken();
-        resolve(token);
-      },
-      onFailure: (err) => {
-        reject(err);
+Amplify.configure({
+  Auth: {
+    Cognito: {
+      userPoolId: "us-east-2_W1NZcFghK",
+      userPoolClientId: "1956req5ro9drdtbf5i6kis4la",
+      loginWith: {
+        oauth: {
+          domain: "login.eldorado.gg",
+          redirectSignIn: "https://www.eldorado.gg/account/auth-callback",
+          responseType: "code"
+        }
       }
-    });
-
-  });
-}
+    }
+  }
+});
 
 async function run() {
 
   const email = process.env.ELDORADO_EMAIL;
   const password = process.env.ELDORADO_PASSWORD;
 
-  const token = await login(email, password);
+  try {
 
-  console.log("Login correcto");
+    await Auth.signIn({
+      username: email,
+      password: password
+    });
 
-  const response = await axios.get(
-    "https://www.eldorado.gg/api/boostingOffers/me/boostingSubscriptions",
-    {
-      headers: {
-        cookie: `__Host-EldoradoIdToken=${token}`,
-        accept: "application/json"
+    const session = await Auth.fetchAuthSession();
+    const idToken = session.tokens.idToken.toString();
+
+    console.log("Token obtenido");
+
+    const res = await axios.get(
+      "https://www.eldorado.gg/api/boostingOffers/me/boostingSubscriptions",
+      {
+        headers: {
+          cookie: `__Host-EldoradoIdToken=${idToken}`,
+          accept: "application/json"
+        }
       }
-    }
-  );
+    );
 
-  const subscriptions = response.data;
+    const data = res.data;
 
-  console.log("Subscriptions recibidas");
+    console.log("Respuesta recibida");
 
-  subscriptions.forEach(sub => {
+    data.forEach(item => {
+      if (item.server === "NA") {
+        console.log("Servidor NA:", item);
+      }
+    });
 
-    if (sub.server === "NA") {
-      console.log("Servidor NA detectado:", sub);
-    }
-
-  });
+  } catch (err) {
+    console.error("Error:", err.message);
+  }
 
 }
 
-run().catch(console.error);
+run();
