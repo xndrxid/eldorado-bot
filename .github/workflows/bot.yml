@@ -8,6 +8,9 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    env:
+      ELDORADO_EMAIL: ${{ secrets.ELDORADO_EMAIL }}
+      ELDORADO_PASSWORD: ${{ secrets.ELDORADO_PASSWORD }}
 
     steps:
       - name: Checkout repo
