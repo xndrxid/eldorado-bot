@@ -1,21 +1,71 @@
-import axios from "axios";
+const axios = require("axios");
+const AmazonCognitoIdentity = require("amazon-cognito-identity-js");
+global.fetch = require("node-fetch");
 
-const API_URL = "https://www.eldorado.gg/api/boostingOffers/me/boostingSubscriptions";
-
-const headers = {
-  "user-agent": "Android23-Bot-OdLY2N9LrO"
+const poolData = {
+  UserPoolId: "us-east-2_W1NZcFghK",
+  ClientId: "1956req5ro9drdtbf5i6kis4la"
 };
 
-async function checkOffers() {
-  try {
-    const res = await axios.get(API_URL, { headers });
+const pool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
 
-    console.log("Respuesta recibida:");
-    console.log(res.data);
+function login(email, password) {
+  return new Promise((resolve, reject) => {
 
-  } catch (err) {
-    console.error("Error:", err.message);
-  }
+    const user = new AmazonCognitoIdentity.CognitoUser({
+      Username: email,
+      Pool: pool
+    });
+
+    const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+      Username: email,
+      Password: password
+    });
+
+    user.authenticateUser(authDetails, {
+      onSuccess: (result) => {
+        const token = result.getIdToken().getJwtToken();
+        resolve(token);
+      },
+      onFailure: (err) => {
+        reject(err);
+      }
+    });
+
+  });
 }
 
-setInterval(checkOffers, 1000);
+async function run() {
+
+  const email = process.env.ELDORADO_EMAIL;
+  const password = process.env.ELDORADO_PASSWORD;
+
+  const token = await login(email, password);
+
+  console.log("Login correcto");
+
+  const response = await axios.get(
+    "https://www.eldorado.gg/api/boostingOffers/me/boostingSubscriptions",
+    {
+      headers: {
+        cookie: `__Host-EldoradoIdToken=${token}`,
+        accept: "application/json"
+      }
+    }
+  );
+
+  const subscriptions = response.data;
+
+  console.log("Subscriptions recibidas");
+
+  subscriptions.forEach(sub => {
+
+    if (sub.server === "NA") {
+      console.log("Servidor NA detectado:", sub);
+    }
+
+  });
+
+}
+
+run().catch(console.error);
